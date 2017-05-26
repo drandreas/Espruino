@@ -276,6 +276,9 @@ static inline void hal_nfc_common_hw_setup(uint8_t * const nfc_internal)
                             ((uint32_t) nfc_internal[6] << NFCID1_LAST_BYTE1_SHIFT) |
                             ((uint32_t) nfc_internal[7] << NFCID1_LAST_BYTE0_SHIFT);
 
+    /* JS-has a high latency, set relaxed FRAMEDELAY and hope for a forgiving reader */
+    NRF_NFCT->FRAMEDELAYMAX = 0xF000UL;
+
     /* Begin: Bugfix for FTPAN-25 (IC-9929) */
     /* Workaround for wrong SENSRES values require using SDD00001, but here SDD00100 is used
        because it's required to operate with Windows Phone */
