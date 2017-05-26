@@ -1809,13 +1809,25 @@ void jsble_nfc_stop() {
   hal_nfc_done();
 }
 
+void jsble_nfc_get_internal(uint8_t *data, size_t *max_len) {
+
+  uint32_t ret_val;
+
+  ret_val = hal_nfc_parameter_get(HAL_NFC_PARAM_ID_INTERNAL, data, max_len);
+  if (ret_val)
+    return jsExceptionHere(JSET_ERROR, "nfcGetInternal: Got NFC error code %d", ret_val);
+}
+
 void jsble_nfc_start(const uint8_t *data, size_t len) {
   if (nfcEnabled) jsble_nfc_stop();
 
   uint32_t ret_val;
 
   /* Set UID / UID Length */
-  ret_val = hal_nfc_parameter_set(HAL_NFC_PARAM_ID_UID, data, len);
+  if (len)
+    ret_val = hal_nfc_parameter_set(HAL_NFC_PARAM_ID_UID, data, len);
+  else
+    ret_val = hal_nfc_parameter_set(HAL_NFC_PARAM_ID_UID, "\0\0\0\0\0\0\0", 7);
   if (ret_val)
     return jsExceptionHere(JSET_ERROR, "nfcSetUid: Got NFC error code %d", ret_val);
 

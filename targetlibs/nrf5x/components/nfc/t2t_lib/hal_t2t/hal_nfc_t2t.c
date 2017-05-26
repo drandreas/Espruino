@@ -150,6 +150,7 @@ static inline void nrf_nfct_field_event_handler(volatile nfct_field_sense_state_
 
 /* Static data */
 static uint8_t                      m_nfc_uid[7] = {0};                                           /**< Cache of custom uid */
+static uint8_t                      m_nfc_internal[T2T_INTERNAL_BYTES_NR] = {0};                  /**< Cache of internal tag memory (first 10 bytes) */
 static hal_nfc_callback_t           m_nfc_lib_callback = (hal_nfc_callback_t) NULL;               /**< Callback to nfc_lib layer */
 static void *                       m_nfc_lib_context;                                            /**< Callback execution context */
 static volatile uint8_t             m_nfc_rx_buffer[NFC_RX_BUFFER_SIZE]   = {0};                  /**< Buffer for NFC Rx data */
@@ -285,12 +286,10 @@ static inline void hal_nfc_common_hw_setup(uint8_t * const nfc_internal)
 
 ret_code_t hal_nfc_setup(hal_nfc_callback_t callback, void * p_context)
 {
-    uint8_t  nfc_internal[T2T_INTERNAL_BYTES_NR];
-    
     m_nfc_lib_callback = callback;
     m_nfc_lib_context  = p_context;
     
-    hal_nfc_common_hw_setup(nfc_internal);
+    hal_nfc_common_hw_setup(m_nfc_internal);
 
     /* Initialize SDK Clock module for handling high precission clock requests */
     m_clock_handler_item.event_handler = nrf_nfct_clock_event_handler;
@@ -436,7 +435,6 @@ static inline void nrf_nfct_field_event_handler(volatile nfct_field_sense_state_
 }
 #endif // HAL_NFC_ENGINEERING_BC_FTPAN_WORKAROUND
 
-/* This function is used by nfc_lib for unit testing only */
 ret_code_t hal_nfc_parameter_set(hal_nfc_param_id_t id, const void * p_data, size_t data_length)
 {
     switch(id)
@@ -454,13 +452,22 @@ ret_code_t hal_nfc_parameter_set(hal_nfc_param_id_t id, const void * p_data, siz
     return NRF_SUCCESS;
 } 
 
-/* This function is used by nfc_lib for unit testing only */
 ret_code_t hal_nfc_parameter_get(hal_nfc_param_id_t id, void * p_data, size_t * p_max_data_length)
 {
-    (void)id;
-    (void)p_data;
-    (void)p_max_data_length;
-
+    switch(id)
+    {
+        case HAL_NFC_PARAM_ID_INTERNAL:
+            if(*p_max_data_length < T2T_INTERNAL_BYTES_NR)
+            {
+                *p_max_data_length = T2T_INTERNAL_BYTES_NR;
+                return NRF_ERROR_INVALID_LENGTH;
+            }
+            *p_max_data_length = T2T_INTERNAL_BYTES_NR;
+            memcpy(p_data, (void *)m_nfc_internal, T2T_INTERNAL_BYTES_NR);
+            break;
+        default:
+            break;
+    }
     return NRF_SUCCESS;
 }
 
@@ -740,9 +747,7 @@ static inline void nrf_nfct_field_event_handler(volatile nfct_field_sense_state_
  */
 static inline void hal_nfc_re_setup(void)
 {
-    uint8_t  nfc_internal[T2T_INTERNAL_BYTES_NR];
-
-    hal_nfc_common_hw_setup(nfc_internal);
+    hal_nfc_common_hw_setup(m_nfc_internal);
 
     NRF_LOG_INFO("Reinitialize\r\n");
 }
