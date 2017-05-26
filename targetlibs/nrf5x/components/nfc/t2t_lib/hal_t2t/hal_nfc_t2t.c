@@ -183,7 +183,7 @@ static void hal_nfc_field_check(void);
 static void field_timer_with_callback_config()
 {
     NRF_TIMER4->MODE      = TIMER_MODE_MODE_Timer << TIMER_MODE_MODE_Pos;
-    NRF_TIMER4->BITMODE   = TIMER_BITMODE_BITMODE_08Bit << TIMER_BITMODE_BITMODE_Pos;
+    NRF_TIMER4->BITMODE   = TIMER_BITMODE_BITMODE_16Bit << TIMER_BITMODE_BITMODE_Pos;
     NRF_TIMER4->PRESCALER = 4 << TIMER_PRESCALER_PRESCALER_Pos;
     NRF_TIMER4->CC[0]     = HAL_NFC_FIELD_TIMER_PERIOD << TIMER_CC_CC_Pos;
     NRF_TIMER4->SHORTS    = TIMER_SHORTS_COMPARE0_CLEAR_Enabled << TIMER_SHORTS_COMPARE0_CLEAR_Pos;
@@ -269,6 +269,9 @@ static inline void hal_nfc_common_hw_setup(uint8_t * const nfc_internal)
                             ((uint32_t) nfc_internal[5] << NFCID1_LAST_BYTE2_SHIFT) |
                             ((uint32_t) nfc_internal[6] << NFCID1_LAST_BYTE1_SHIFT) |
                             ((uint32_t) nfc_internal[7] << NFCID1_LAST_BYTE0_SHIFT);
+
+    /* JS-has a high latency, set relaxed FRAMEDELAY and hope for a forgiving reader */
+    NRF_NFCT->FRAMEDELAYMAX = 0xF000UL;
 
     /* Begin: Bugfix for FTPAN-25 (IC-9929) */
     /* Workaround for wrong SENSRES values require using SDD00001, but here SDD00100 is used
