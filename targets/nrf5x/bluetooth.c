@@ -1803,7 +1803,6 @@ void jsble_send_hid_input_report(uint8_t *data, int length) {
 
 #ifdef USE_NFC
 void jsble_nfc_stop() {
-  if (!nfcEnabled) return;
   nfcEnabled = false;
   hal_nfc_stop();
   hal_nfc_done();
@@ -1819,7 +1818,7 @@ void jsble_nfc_get_internal(uint8_t *data, size_t *max_len) {
 }
 
 void jsble_nfc_start(const uint8_t *data, size_t len) {
-  if (nfcEnabled) jsble_nfc_stop();
+  jsble_nfc_stop();
 
   uint32_t ret_val;
 
