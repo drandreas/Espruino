@@ -128,24 +128,12 @@ void jswrap_nrf_init() {
   jsiStatus &= ~BLE_IS_SLEEPING;
 
 #ifdef USE_NFC
-  if (jsiStatus & JSIS_COMPLETELY_RESET) {
-#ifdef PUCKJS
-    // By default Puck.js's NFC will send you to the PuckJS website
-    // address is included so Web Bluetooth can connect to the correct one
-    JsVar *addr = jswrap_nrf_bluetooth_getAddress();
-    JsVar *uri = jsvVarPrintf("https://puck-js.com/go?a=%v", addr);
-    jsvUnLock(addr);
-    jswrap_nrf_nfcURL(uri);
-    jsvUnLock(uri);
-#endif
-  } else {
-    // start NFC, if it had been set
-    JsVar *flatStr = jsvObjectGetChild(execInfo.hiddenRoot, "NFC", 0);
-    if (flatStr) {
-      uint8_t *flatStrPtr = (uint8_t*)jsvGetFlatStringPointer(flatStr);
-      if (flatStrPtr) jsble_nfc_start(flatStrPtr, jsvGetLength(flatStr));
-      jsvUnLock(flatStr);
-    }
+  // start NFC, if it had been set
+  JsVar *flatStr = jsvObjectGetChild(execInfo.hiddenRoot, "NFC", 0);
+  if (flatStr) {
+    uint8_t *flatStrPtr = (uint8_t*)jsvGetFlatStringPointer(flatStr);
+    if (flatStrPtr) jsble_nfc_start(flatStrPtr, jsvGetLength(flatStr));
+    jsvUnLock(flatStr);
   }
 #endif
 }
@@ -1245,99 +1233,22 @@ void jswrap_nrf_bluetooth_setLowPowerConnection(bool lowPower) {
 /*JSON{
     "type" : "staticmethod",
     "class" : "NRF",
-    "name" : "nfcURL",
+    "name" : "nfcUid",
     "ifdef" : "NRF52",
-    "generate" : "jswrap_nrf_nfcURL",
+    "generate" : "jswrap_nrf_nfcUid",
     "params" : [
-      ["url","JsVar","The URL string to expose on NFC, or `undefined` to disable NFC"]
+      ["payload","JsVar","7 byte UID"]
     ]
 }
-Enables NFC and starts advertising the given URL. For example:
+Enables NFC and starts advertising with custom UID. For example:
 
 ```
-NRF.nfcURL("http://espruino.com");
+NRF.nfcUid(new Uint8Array([0x04, 0x24, 0xAF, 0x81, 0x15, 0x3C, 0x80])); //7 bytes
 ```
 
 **Note:** This is only available on nRF52-based devices
 */
-void jswrap_nrf_nfcURL(JsVar *url) {
-#ifdef USE_NFC
-  // Check for disabling NFC
-  if (jsvIsUndefined(url)) {
-    jsvObjectRemoveChild(execInfo.hiddenRoot, "NFC");
-    jsble_nfc_stop();
-    return;
-  }
-
-  if (!jsvIsString(url)) {
-    jsExceptionHere(JSET_TYPEERROR, "Expecting a String, got %t", url);
-    return;
-  }
-
-  uint32_t err_code;
-  /* Turn off NFC */
-  jsble_nfc_stop();
-  JSV_GET_AS_CHAR_ARRAY(urlPtr, urlLen, url);
-  if (!urlPtr || !urlLen)
-    return jsExceptionHere(JSET_ERROR, "Unable to get URL data");
-
-  nfc_uri_id_t uriType = NFC_URI_NONE;
-  if (memcmp(urlPtr, "http://", 7)==0) {
-    urlPtr+=7;
-    urlLen-=7;
-    uriType = NFC_URI_HTTP;
-  } else if (memcmp(urlPtr, "https://", 8)==0) {
-    urlPtr+=8;
-    urlLen-=8;
-    uriType = NFC_URI_HTTPS;
-  }
-
-  uint8_t msg_buf[256];
-  uint32_t len = sizeof(msg_buf);
-  /* Encode URI message into buffer */
-  err_code = nfc_uri_msg_encode( uriType, // TODO: could auto-prepend http/etc.
-                                 (uint8_t *)urlPtr,
-                                 urlLen,
-                                 msg_buf,
-                                 &len);
-  if (err_code)
-    return jsExceptionHere(JSET_ERROR, "nfc_uri_msg_encode: NFC error code %d", err_code);
-
-  /* Create a flat string - we need this to store the URI data so it hangs around.
-   * Avoid having a static var so we have RAM available if not using NFC */
-  JsVar *flatStr = jsvNewFlatStringOfLength(len);
-  if (!flatStr)
-    return jsExceptionHere(JSET_ERROR, "Unable to create string with URI data in");
-  jsvObjectSetChild(execInfo.hiddenRoot, "NFC", flatStr);
-  uint8_t *flatStrPtr = (uint8_t*)jsvGetFlatStringPointer(flatStr);
-  jsvUnLock(flatStr);
-  memcpy(flatStrPtr, msg_buf, len);
-
-  // start nfc properly
-  jsble_nfc_start(flatStrPtr, len);
-#endif
-}
-
-/*JSON{
-    "type" : "staticmethod",
-    "class" : "NRF",
-    "name" : "nfcRaw",
-    "ifdef" : "NRF52",
-    "generate" : "jswrap_nrf_nfcRaw",
-    "params" : [
-      ["payload","JsVar","The NFC NDEF message to deliver to the reader"]
-    ]
-}
-Enables NFC and starts advertising with Raw data. For example:
-
-```
-NRF.nfcRaw(new Uint8Array([193, 1, 0, 0, 0, 13, 85, 3, 101, 115, 112, 114, 117, 105, 110, 111, 46, 99, 111, 109]));
-// same as NRF.nfcURL("http://espruino.com");
-```
-
-**Note:** This is only available on nRF52-based devices
-*/
-void jswrap_nrf_nfcRaw(JsVar *payload) {
+void jswrap_nrf_nfcUid(JsVar *payload) {
 #ifdef USE_NFC
   // Check for disabling NFC
   if (jsvIsUndefined(payload)) {
