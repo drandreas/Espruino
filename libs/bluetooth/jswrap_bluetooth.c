@@ -125,7 +125,7 @@ void jswrap_nrf_init() {
 
 #ifdef USE_NFC
   // start NFC, if it had been set
-  JsVar *flatStr = jsvObjectGetChild(execInfo.hiddenRoot, "NFC", 0);
+  JsVar *flatStr = jsvObjectGetChild(execInfo.hiddenRoot, "NfcUid", 0);
   if (flatStr) {
     uint8_t *flatStrPtr = (uint8_t*)jsvGetFlatStringPointer(flatStr);
     if (flatStrPtr) jsble_nfc_start(flatStrPtr, jsvGetLength(flatStr));
@@ -1248,7 +1248,7 @@ void jswrap_nrf_nfcUid(JsVar *payload) {
 #ifdef USE_NFC
   // Check for disabling NFC
   if (jsvIsUndefined(payload)) {
-    jsvObjectRemoveChild(execInfo.hiddenRoot, "NFC");
+    jsvObjectRemoveChild(execInfo.hiddenRoot, "NfcUid");
     jsble_nfc_stop();
     return;
   }
@@ -1265,13 +1265,56 @@ void jswrap_nrf_nfcUid(JsVar *payload) {
   JsVar *flatStr = jsvNewFlatStringOfLength(dataLen);
   if (!flatStr)
     return jsExceptionHere(JSET_ERROR, "Unable to create string with NFC data in");
-  jsvObjectSetChild(execInfo.hiddenRoot, "NFC", flatStr);
+  jsvObjectSetChild(execInfo.hiddenRoot, "NfcUid", flatStr);
   uint8_t *flatStrPtr = (uint8_t*)jsvGetFlatStringPointer(flatStr);
   jsvUnLock(flatStr);
   memcpy(flatStrPtr, dataPtr, dataLen);
 
   // start nfc properly
   jsble_nfc_start(flatStrPtr, dataLen);
+#endif
+}
+
+
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "NRF",
+    "name" : "nfcSend",
+    "ifdef" : "NRF52",
+    "generate" : "jswrap_nrf_nfcSend",
+    "params" : [
+      ["payload","JsVar","The tx data"]
+    ]
+}
+Transmits a NFC packet to the connected NFC reader.
+
+```
+NRF.nfcSend(new Uint8Array([0x01, 0x02, ...]));
+```
+
+**Note:** This is only available on nRF52-based devices
+*/
+void jswrap_nrf_nfcSend(JsVar *payload) {
+#ifdef USE_NFC
+  if (jsvIsUndefined(payload))
+    return jsExceptionHere(JSET_ERROR, "Unable to get NFC data");
+
+  JSV_GET_AS_CHAR_ARRAY(dataPtr, dataLen, payload);
+  if (!dataPtr || !dataLen)
+    return jsExceptionHere(JSET_ERROR, "Unable to get NFC data");
+
+  /* Create a flat string - we need this to store the NFC data so it hangs around.
+   * Avoid having a static var so we have RAM available if not using NFC */
+  JsVar *flatStr = jsvNewFlatStringOfLength(dataLen);
+  if (!flatStr)
+    return jsExceptionHere(JSET_ERROR, "Unable to create string with NFC data in");
+  jsvObjectSetChild(execInfo.hiddenRoot, "NfcSend", flatStr);
+  uint8_t *flatStrPtr = (uint8_t*)jsvGetFlatStringPointer(flatStr);
+  jsvUnLock(flatStr);
+  memcpy(flatStrPtr, dataPtr, dataLen);
+
+  // start nfc properly
+  jsble_nfc_send(flatStrPtr, dataLen);
 #endif
 }
 
