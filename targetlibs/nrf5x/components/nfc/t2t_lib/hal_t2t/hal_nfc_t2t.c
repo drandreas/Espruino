@@ -116,7 +116,7 @@
 #define NFCID1_LAST_BYTE1_SHIFT     8u                                          /**< Shift value for NFC ID byte 1 */
 #define NFCID1_LAST_BYTE0_SHIFT     0u                                          /**< Shift value for NFC ID byte 0 */
 
-#define NFC_RX_BUFFER_SIZE          64u                                         /**< NFC Rx data buffer size */
+#define NFC_RX_BUFFER_SIZE          255u                                        /**< NFC Rx data buffer size */
 #define NFC_SLP_REQ_CMD             0x50u                                       /**< NFC SLP_REQ command identifier */
 #define NFC_UID_SIZE                7u                                          /**< UID size in bytes */
 #define NFC_CRC_SIZE                2u                                          /**< CRC size in bytes */
