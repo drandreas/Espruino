@@ -80,6 +80,7 @@ void jswrap_nrf_bluetooth_setLowPowerConnection(bool lowPower);
 
 JsVar *jswrap_nrf_nfcStart(JsVar *payload);
 void jswrap_nrf_nfcStop();
+void jswrap_nrf_nfcSend(JsVar *payload);
 void jswrap_nrf_sendHIDReport(JsVar *data, JsVar *callback);
 
 JsVar *jswrap_nrf_bluetooth_requestDevice(JsVar *options);
