@@ -544,13 +544,7 @@ ret_code_t hal_nfc_send_rsp(const uint8_t data, size_t data_length)
 
 ret_code_t hal_nfc_stop(void)
 {
-    NVIC_DisableIRQ(NFCT_IRQn);
     NRF_NFCT->TASKS_DISABLE = 1;
-
-    if(m_field_on) {
-      nrf_drv_clock_hfclk_release();
-      m_field_on = false;
-    }
 
     NRF_LOG_INFO("Stop\r\n");
     return NRF_SUCCESS;
