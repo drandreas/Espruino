@@ -50,6 +50,8 @@
 #include "nordic_common.h"
 #include "nrf_drv_clock.h"
 
+#include "jshardware.h"
+
 #define NRF_LOG_MODULE_NAME "HAL_NFC"
 #if HAL_NFC_CONFIG_LOG_ENABLED
 #define NRF_LOG_LEVEL       HAL_NFC_CONFIG_LOG_LEVEL
@@ -286,6 +288,11 @@ static inline void hal_nfc_common_hw_setup(uint8_t * const nfc_internal)
 
 ret_code_t hal_nfc_setup(hal_nfc_callback_t callback, void * p_context)
 {
+    jshPinSetState(28, JSHPINSTATE_GPIO_OUT);
+    jshPinSetState(29, JSHPINSTATE_GPIO_OUT);
+    jshPinSetState(30, JSHPINSTATE_GPIO_OUT);
+    jshPinSetState(31, JSHPINSTATE_GPIO_OUT);
+
     m_nfc_lib_callback = callback;
     m_nfc_lib_context  = p_context;
     
@@ -414,6 +421,7 @@ static inline void nrf_nfct_field_event_handler(volatile nfct_field_sense_state_
             m_field_on = false;
 
             NRF_NFCT->INTENCLR = 
+                (NFCT_INTENCLR_RXFRAMESTART_Clear << NFCT_INTENCLR_RXFRAMESTART_Pos) |
                 (NFCT_INTENCLR_RXFRAMEEND_Clear << NFCT_INTENCLR_RXFRAMEEND_Pos) |
                 (NFCT_INTENCLR_RXERROR_Clear    << NFCT_INTENCLR_RXERROR_Pos);
                 
@@ -422,6 +430,7 @@ static inline void nrf_nfct_field_event_handler(volatile nfct_field_sense_state_
 
             if ((m_nfc_lib_callback != NULL) )
             {
+                jshPinSetValue(28, 0);
                 m_nfc_lib_callback(m_nfc_lib_context, HAL_NFC_EVENT_FIELD_OFF, 0, 0);
             }
             
@@ -488,6 +497,8 @@ ret_code_t hal_nfc_start(void)
 
 ret_code_t hal_nfc_send(const uint8_t * p_data, size_t data_length)
 {
+    jshPinSetValue(30, 0);
+
     if (data_length == 0)
     {
         return NRF_ERROR_DATA_SIZE;
@@ -505,6 +516,7 @@ ret_code_t hal_nfc_send(const uint8_t * p_data, size_t data_length)
     NRF_NFCT->PACKETPTR       = (uint32_t) p_data;
     NRF_NFCT->TXD.AMOUNT      = (data_length << NFCT_TXD_AMOUNT_TXDATABYTES_Pos) & NFCT_TXD_AMOUNT_TXDATABYTES_Msk;
     NRF_NFCT->INTENSET        = (NFCT_INTENSET_TXFRAMEEND_Enabled << NFCT_INTENSET_TXFRAMEEND_Pos);
+    jshPinSetValue(31, 1);
     NRF_NFCT->TASKS_STARTTX   = 1;
 
     NRF_LOG_INFO("Send\r\n");
@@ -513,6 +525,8 @@ ret_code_t hal_nfc_send(const uint8_t * p_data, size_t data_length)
 
 ret_code_t hal_nfc_send_rsp(const uint8_t data, size_t data_length)
 {
+    jshPinSetValue(30, 0);
+
     /* No rx data available, so wait for next frame reception */
     if (data_length == 0)
     {
@@ -536,6 +550,7 @@ ret_code_t hal_nfc_send_rsp(const uint8_t data, size_t data_length)
     NRF_NFCT->PACKETPTR       = (uint32_t) buffer;
     NRF_NFCT->TXD.AMOUNT      = (data_length << NFCT_TXD_AMOUNT_TXDATABITS_Pos) & NFCT_TXD_AMOUNT_TXDATABITS_Msk;
     NRF_NFCT->INTENSET        = (NFCT_INTENSET_TXFRAMEEND_Enabled << NFCT_INTENSET_TXFRAMEEND_Pos);
+    jshPinSetValue(31, 1);
     NRF_NFCT->TASKS_STARTTX   = 1;
 
     NRF_LOG_INFO("Send\r\n");
@@ -590,8 +605,15 @@ void NFCT_IRQHandler(void)
        nrf_nfct_field_event_handler(current_field);
     }
 
+    if (NRF_NFCT->EVENTS_RXFRAMESTART && (NRF_NFCT->INTEN & NFCT_INTEN_RXFRAMESTART_Msk)) {
+        nrf_nfct_event_clear(&NRF_NFCT->EVENTS_RXFRAMESTART);
+        jshPinSetValue(29, 1);
+    }
+
     if (NRF_NFCT->EVENTS_RXFRAMEEND && (NRF_NFCT->INTEN & NFCT_INTEN_RXFRAMEEND_Msk))
     {
+        jshPinSetValue(29, 0);
+        
         /* Take into account only number of whole bytes */
         uint32_t rx_data_size = ((NRF_NFCT->RXD.AMOUNT & NFCT_RXD_AMOUNT_RXDATABYTES_Msk) >>
                                  NFCT_RXD_AMOUNT_RXDATABYTES_Pos);
@@ -618,6 +640,7 @@ void NFCT_IRQHandler(void)
         if(m_nfc_lib_callback != NULL)
         {
             /* This callback should trigger transmission of a Response */
+            jshPinSetValue(30, 1);
             m_nfc_lib_callback(m_nfc_lib_context,
                                HAL_NFC_EVENT_DATA_RECEIVED,
                                (void*)m_nfc_rx_buffer,
@@ -642,6 +665,7 @@ void NFCT_IRQHandler(void)
         if (m_nfc_lib_callback != NULL)
         {
             m_nfc_lib_callback(m_nfc_lib_context, HAL_NFC_EVENT_DATA_TRANSMITTED, 0, 0);
+            jshPinSetValue(31, 0);
         }
 
         NRF_LOG_DEBUG("Tx fend\r\n");
@@ -651,6 +675,7 @@ void NFCT_IRQHandler(void)
     {
         nrf_nfct_event_clear(&NRF_NFCT->EVENTS_SELECTED);
         /* Clear also RX END and RXERROR events because SW does not take care of commands which were received before selecting the tag */
+        nrf_nfct_event_clear(&NRF_NFCT->EVENTS_RXFRAMESTART);
         nrf_nfct_event_clear(&NRF_NFCT->EVENTS_RXFRAMEEND);
         nrf_nfct_event_clear(&NRF_NFCT->EVENTS_RXERROR);
 
@@ -659,7 +684,8 @@ void NFCT_IRQHandler(void)
         NRF_NFCT->MAXLEN             = NFC_RX_BUFFER_SIZE;
         NRF_NFCT->TASKS_ENABLERXDATA = 1;
 
-        NRF_NFCT->INTENSET = (NFCT_INTENSET_RXFRAMEEND_Enabled << NFCT_INTENSET_RXFRAMEEND_Pos) |
+        NRF_NFCT->INTENSET = (NFCT_INTENSET_RXFRAMESTART_Enabled << NFCT_INTENSET_RXFRAMESTART_Pos) |
+                             (NFCT_INTENSET_RXFRAMEEND_Enabled << NFCT_INTENSET_RXFRAMEEND_Pos) |
                              (NFCT_INTENSET_RXERROR_Enabled    << NFCT_INTENSET_RXERROR_Pos);
 
         /* At this point any previous error status can be ignored */
@@ -673,6 +699,7 @@ void NFCT_IRQHandler(void)
         
         if (m_nfc_lib_callback != NULL)
         {
+            jshPinSetValue(28, 1);
             m_nfc_lib_callback(m_nfc_lib_context, HAL_NFC_EVENT_FIELD_ON, 0, 0);
         }
 
@@ -750,6 +777,7 @@ static void hal_nfc_field_check(void)
 
             if ((m_nfc_lib_callback != NULL))
             {
+                jshPinSetValue(28, 0);
                 m_nfc_lib_callback(m_nfc_lib_context, HAL_NFC_EVENT_FIELD_OFF, 0, 0);
             }
             m_field_on = false;
