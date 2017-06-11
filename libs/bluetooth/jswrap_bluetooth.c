@@ -1344,7 +1344,7 @@ void jswrap_nrf_nfcSend(JsVar *payload) {
 #ifdef USE_NFC
   /* Switch to RX */
   if (jsvIsUndefined(payload))
-    return jsble_nfc_send_rsp(0, 0); //
+    return jsble_nfc_send_rsp(0, 0);
 
   /* Send 4 bit ACK/NACK */
   if (jsvIsInt(payload))
