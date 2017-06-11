@@ -118,6 +118,7 @@
 
 #define NFC_BUFFER_SIZE             255u                                        /**< NFC Rx data buffer size */
 #define NFC_SLP_REQ_CMD             0x50u                                       /**< NFC SLP_REQ command identifier */
+#define NFC_WUPA_CMD                0x52u                                       /**< NFC wake up all command identifier */
 #define NFC_UID_SIZE                7u                                          /**< UID size in bytes */
 #define NFC_CRC_SIZE                2u                                          /**< CRC size in bytes */
 
@@ -276,9 +277,6 @@ static inline void hal_nfc_common_hw_setup(uint8_t * const nfc_internal)
                             ((uint32_t) nfc_internal[5] << NFCID1_LAST_BYTE2_SHIFT) |
                             ((uint32_t) nfc_internal[6] << NFCID1_LAST_BYTE1_SHIFT) |
                             ((uint32_t) nfc_internal[7] << NFCID1_LAST_BYTE0_SHIFT);
-
-    /* JS-has a high latency, set relaxed FRAMEDELAY and hope for a forgiving reader */
-    NRF_NFCT->FRAMEDELAYMAX = 0xF000UL;
 
     /* Begin: Bugfix for FTPAN-25 (IC-9929) */
     /* Workaround for wrong SENSRES values require using SDD00001, but here SDD00100 is used
@@ -618,6 +616,9 @@ void NFCT_IRQHandler(void)
 
         nrf_nfct_event_clear(&NRF_NFCT->EVENTS_RXFRAMEEND);
 
+        /* Use default FRAMEDELAY, for all cases but callback */
+        NRF_NFCT->FRAMEDELAYMAX = 0x1000UL; //333us, taken from datasheet
+
         /* Frame is garbage, wait for next frame reception */
         if((rx_data_size == 0) || (rx_data_size > NFC_BUFFER_SIZE))
         {
@@ -632,8 +633,12 @@ void NFCT_IRQHandler(void)
             NRF_NFCT->TASKS_ENABLERXDATA = 1;
 
         } else
-        if(m_nfc_lib_callback != NULL)
+        /* Filter link layer frames and call callback for the rest */
+        if((m_nfc_buffer[0] != NFC_WUPA_CMD) && (m_nfc_lib_callback != NULL))
         {
+            /* JS-has a high latency, set relaxed FRAMEDELAY and hope for a forgiving reader */
+            NRF_NFCT->FRAMEDELAYMAX = 0xFFFFUL; //4.8ms
+
             /* This callback should trigger transmission of a Response */
             m_nfc_lib_callback(m_nfc_lib_context,
                                HAL_NFC_EVENT_DATA_RECEIVED,
