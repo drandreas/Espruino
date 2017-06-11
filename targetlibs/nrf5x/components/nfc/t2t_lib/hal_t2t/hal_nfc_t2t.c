@@ -118,7 +118,6 @@
 
 #define NFC_BUFFER_SIZE             255u                                        /**< NFC Rx data buffer size */
 #define NFC_SLP_REQ_CMD             0x50u                                       /**< NFC SLP_REQ command identifier */
-#define NFC_WUPA_CMD                0x52u                                       /**< NFC wake up all command identifier */
 #define NFC_UID_SIZE                7u                                          /**< UID size in bytes */
 #define NFC_CRC_SIZE                2u                                          /**< CRC size in bytes */
 
@@ -617,7 +616,7 @@ void NFCT_IRQHandler(void)
         nrf_nfct_event_clear(&NRF_NFCT->EVENTS_RXFRAMEEND);
 
         /* Use default FRAMEDELAY, for all cases but callback */
-        NRF_NFCT->FRAMEDELAYMAX = 0x1000UL; //333us, taken from datasheet
+        NRF_NFCT->FRAMEDELAYMAX = 0x1000UL; //302us, taken from datasheet
 
         /* Frame is garbage, wait for next frame reception */
         if((rx_data_size == 0) || (rx_data_size > NFC_BUFFER_SIZE))
@@ -634,7 +633,7 @@ void NFCT_IRQHandler(void)
 
         } else
         /* Filter link layer frames and call callback for the rest */
-        if((m_nfc_buffer[0] != NFC_WUPA_CMD) && (m_nfc_lib_callback != NULL))
+        if(m_nfc_lib_callback != NULL)
         {
             /* JS-has a high latency, set relaxed FRAMEDELAY and hope for a forgiving reader */
             NRF_NFCT->FRAMEDELAYMAX = 0xFFFFUL; //4.8ms
